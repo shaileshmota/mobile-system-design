@@ -1,0 +1,2285 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Mobile System Design — Shailesh Mota</title>
+  <style>
+    :root {
+      --bg: #f7f4ed; --paper: #fffdf8; --ink: #20231f; --muted: #6d7069;
+      --line: #ded9ce; --accent: #176b5d; --accent-soft: #dceee9;
+      --code: #f0ece3; --shadow: 0 18px 60px rgba(49, 43, 31, .09);
+      --reading: 760px;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0; color: var(--ink); background: var(--bg);
+      font: 18px/1.72 ui-serif, Georgia, Cambria, "Times New Roman", serif;
+    }
+    a { color: var(--accent); text-decoration-thickness: .08em; text-underline-offset: .14em; }
+    .topbar {
+      position: sticky; top: 0; z-index: 20; height: 58px; display: flex;
+      align-items: center; gap: 14px; padding: 0 22px; background: color-mix(in srgb, var(--paper) 92%, transparent);
+      border-bottom: 1px solid var(--line); backdrop-filter: blur(14px);
+    }
+    .topbar strong { font: 700 15px/1.2 ui-sans-serif, system-ui, sans-serif; letter-spacing: .02em; }
+    .topbar .spacer { flex: 1; }
+    button {
+      border: 1px solid var(--line); color: var(--ink); background: var(--paper);
+      border-radius: 999px; padding: 7px 11px; cursor: pointer; font: 600 13px/1 ui-sans-serif, system-ui, sans-serif;
+    }
+    .progress { position: fixed; top: 57px; left: 0; z-index: 30; height: 3px; width: 0; background: var(--accent); }
+    .layout { display: grid; grid-template-columns: minmax(230px, 290px) minmax(0, 1fr); max-width: 1280px; margin: 0 auto; }
+    #TOC {
+      position: sticky; top: 58px; height: calc(100vh - 58px); overflow: auto;
+      padding: 34px 24px 60px; border-right: 1px solid var(--line);
+      font: 14px/1.45 ui-sans-serif, system-ui, sans-serif;
+    }
+    #TOC::before { content: "CONTENTS"; display: block; margin-bottom: 14px; color: var(--muted); font-size: 11px; letter-spacing: .14em; font-weight: 800; }
+    #TOC ul { list-style: none; padding-left: 0; margin: 0; }
+    #TOC ul ul { padding-left: 14px; margin: 5px 0 11px; }
+    #TOC li { margin: 5px 0; }
+    #TOC a { color: var(--muted); text-decoration: none; display: block; padding: 3px 0; }
+    #TOC a:hover, #TOC a.active { color: var(--accent); }
+    main {
+      width: min(100%, calc(var(--reading) + 120px)); margin: 0 auto; padding: 72px 60px 120px;
+      background: var(--paper); box-shadow: var(--shadow); min-height: 100vh;
+    }
+    h1, h2, h3, h4 { font-family: ui-sans-serif, system-ui, sans-serif; line-height: 1.16; letter-spacing: -.025em; scroll-margin-top: 78px; }
+    h1 { font-size: clamp(2.5rem, 6vw, 4.8rem); margin: 0 0 24px; max-width: 12ch; }
+    h2 { font-size: 2rem; margin: 2.7em 0 .75em; border-top: 1px solid var(--line); padding-top: .8em; }
+    h3 { font-size: 1.3rem; margin: 2em 0 .55em; }
+    p, li { max-width: var(--reading); }
+    blockquote { margin: 1.7em 0; padding: 2px 0 2px 22px; border-left: 4px solid var(--accent); color: #46504a; }
+    code { font: .86em/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; background: var(--code); border-radius: 4px; padding: .12em .35em; }
+    pre {
+      max-width: 100%; overflow: auto; padding: 20px; border: 1px solid var(--line);
+      border-radius: 12px; background: var(--code); font-size: .82em; line-height: 1.55;
+    }
+    pre code { padding: 0; background: transparent; }
+    table { width: 100%; border-collapse: collapse; margin: 1.6em 0 2em; font: 15px/1.45 ui-sans-serif, system-ui, sans-serif; }
+    th, td { text-align: left; vertical-align: top; padding: 11px 12px; border-bottom: 1px solid var(--line); }
+    th { color: var(--accent); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+    .chapter-break { break-before: page; margin-top: 90px; }
+    .chapter-break + section > h1, .chapter-break + h1 { font-size: 3rem; max-width: 18ch; padding-top: 30px; }
+    .reading-note {
+      margin: 0 0 54px; padding: 16px 18px; border-radius: 12px; background: var(--accent-soft);
+      font: 14px/1.5 ui-sans-serif, system-ui, sans-serif;
+    }
+    body.focus #TOC { display: none; }
+    body.focus .layout { display: block; }
+    body.focus main { box-shadow: none; }
+    @media (max-width: 900px) {
+      .layout { display: block; }
+      #TOC { position: relative; top: 0; height: auto; border-right: 0; border-bottom: 1px solid var(--line); padding: 28px 22px; }
+      main { padding: 48px 22px 90px; box-shadow: none; }
+      body.focus #TOC { display: none; }
+      table { display: block; overflow-x: auto; }
+    }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg:#151816; --paper:#1d211e; --ink:#e7e9e4; --muted:#a6aba5; --line:#3a403b; --accent:#72c9b7; --accent-soft:#243c36; --code:#272c28; --shadow:none; }
+      blockquote { color: #c4cbc5; }
+    }
+    @media print {
+      .topbar, .progress, #TOC { display: none !important; }
+      .layout { display: block; } main { box-shadow: none; padding: 0; width: auto; }
+      body { background: white; font-size: 11pt; } a { color: inherit; }
+    }
+  </style>
+</head>
+<body>
+  <div class="progress" id="progress"></div>
+  <header class="topbar">
+    <strong>Mobile System Design</strong><span class="spacer"></span>
+    <button id="focus" type="button">Focus mode</button>
+    <button type="button" onclick="window.print()">Print / PDF</button>
+  </header>
+  <div class="layout">
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#mobile-system-design" id="toc-mobile-system-design">Mobile
+System Design</a>
+<ul>
+<li><a href="#status" id="toc-status">Status</a></li>
+<li><a href="#core-principle" id="toc-core-principle">Core
+principle</a></li>
+<li><a href="#license" id="toc-license">License</a></li>
+</ul></li>
+<li><a href="#how-to-use-this-book" id="toc-how-to-use-this-book">How to
+Use This Book</a>
+<ul>
+<li><a href="#level-1-product-system"
+id="toc-level-1-product-system">Level 1: Product system</a></li>
+<li><a href="#level-2-application-architecture"
+id="toc-level-2-application-architecture">Level 2: Application
+architecture</a></li>
+<li><a href="#level-3-mechanism" id="toc-level-3-mechanism">Level 3:
+Mechanism</a></li>
+<li><a href="#two-suggested-reading-paths"
+id="toc-two-suggested-reading-paths">Two suggested reading
+paths</a></li>
+<li><a href="#the-evidence-discipline"
+id="toc-the-evidence-discipline">The evidence discipline</a></li>
+</ul></li>
+<li><a href="#the-mobile-system-design-interview"
+id="toc-the-mobile-system-design-interview">The Mobile System-Design
+Interview</a>
+<ul>
+<li><a href="#a-repeatable-sequence" id="toc-a-repeatable-sequence">A
+repeatable sequence</a></li>
+<li><a href="#step-1-narrow-the-product"
+id="toc-step-1-narrow-the-product">Step 1: Narrow the product</a></li>
+<li><a href="#step-2-rank-non-functional-requirements"
+id="toc-step-2-rank-non-functional-requirements">Step 2: Rank
+non-functional requirements</a></li>
+<li><a href="#step-3-estimate-the-client-workload"
+id="toc-step-3-estimate-the-client-workload">Step 3: Estimate the client
+workload</a></li>
+<li><a href="#step-4-define-durable-state-before-drawing-layers"
+id="toc-step-4-define-durable-state-before-drawing-layers">Step 4:
+Define durable state before drawing layers</a></li>
+<li><a href="#step-5-draw-the-minimum-high-level-design"
+id="toc-step-5-draw-the-minimum-high-level-design">Step 5: Draw the
+minimum high-level design</a></li>
+<li><a href="#step-6-deep-dive-the-risky-flows"
+id="toc-step-6-deep-dive-the-risky-flows">Step 6: Deep-dive the risky
+flows</a></li>
+<li><a href="#step-7-make-trade-offs-explicit"
+id="toc-step-7-make-trade-offs-explicit">Step 7: Make trade-offs
+explicit</a></li>
+<li><a href="#step-8-close-with-operation-not-architecture-theatre"
+id="toc-step-8-close-with-operation-not-architecture-theatre">Step 8:
+Close with operation, not architecture theatre</a></li>
+<li><a href="#a-60-second-opening" id="toc-a-60-second-opening">A
+60-second opening</a></li>
+<li><a href="#common-failure-modes-in-the-interview"
+id="toc-common-failure-modes-in-the-interview">Common failure modes in
+the interview</a></li>
+</ul></li>
+<li><a href="#users-requirements-and-constraints"
+id="toc-users-requirements-and-constraints">Users, Requirements, and
+Constraints</a>
+<ul>
+<li><a href="#characterize-the-users"
+id="toc-characterize-the-users">Characterize the users</a></li>
+<li><a href="#functional-requirements-choose-journeys-not-feature-nouns"
+id="toc-functional-requirements-choose-journeys-not-feature-nouns">Functional
+requirements: choose journeys, not feature nouns</a></li>
+<li><a href="#quality-attributes" id="toc-quality-attributes">Quality
+attributes</a></li>
+<li><a href="#turn-requirements-into-budgets"
+id="toc-turn-requirements-into-budgets">Turn requirements into
+budgets</a></li>
+<li><a href="#real-world-evidence"
+id="toc-real-world-evidence">Real-world evidence</a></li>
+<li><a href="#interview-checkpoint"
+id="toc-interview-checkpoint">Interview checkpoint</a></li>
+</ul></li>
+<li><a href="#client-architecture-at-scale"
+id="toc-client-architecture-at-scale">Client Architecture at Scale</a>
+<ul>
+<li><a href="#begin-with-responsibilities"
+id="toc-begin-with-responsibilities">Begin with
+responsibilities</a></li>
+<li><a href="#a-pragmatic-layered-architecture"
+id="toc-a-pragmatic-layered-architecture">A pragmatic layered
+architecture</a></li>
+<li><a href="#mvvm-mvi-and-unidirectional-data-flow"
+id="toc-mvvm-mvi-and-unidirectional-data-flow">MVVM, MVI, and
+unidirectional data flow</a></li>
+<li><a href="#is-a-domain-layer-necessary"
+id="toc-is-a-domain-layer-necessary">Is a domain layer
+necessary?</a></li>
+<li><a href="#repository-what-it-should-mean"
+id="toc-repository-what-it-should-mean">Repository: what it should
+mean</a></li>
+<li><a href="#feature-and-layer-modularization"
+id="toc-feature-and-layer-modularization">Feature and layer
+modularization</a></li>
+<li><a href="#state-has-several-lifetimes"
+id="toc-state-has-several-lifetimes">State has several
+lifetimes</a></li>
+<li><a href="#multi-platform-choices"
+id="toc-multi-platform-choices">Multi-platform choices</a></li>
+<li><a href="#architecture-fitness-functions"
+id="toc-architecture-fitness-functions">Architecture fitness
+functions</a></li>
+<li><a href="#interview-answer" id="toc-interview-answer">Interview
+answer</a></li>
+</ul></li>
+<li><a href="#networking-and-api-design"
+id="toc-networking-and-api-design">Networking and API Design</a>
+<ul>
+<li><a href="#communication-models"
+id="toc-communication-models">Communication models</a></li>
+<li><a href="#rest" id="toc-rest">REST</a></li>
+<li><a href="#graphql" id="toc-graphql">GraphQL</a></li>
+<li><a href="#websockets" id="toc-websockets">WebSockets</a></li>
+<li><a href="#push-notification-is-a-hint-not-a-database"
+id="toc-push-notification-is-a-hint-not-a-database">Push notification is
+a hint, not a database</a></li>
+<li><a href="#pagination" id="toc-pagination">Pagination</a></li>
+<li><a href="#retry-correctly" id="toc-retry-correctly">Retry
+correctly</a></li>
+<li><a href="#idempotency-and-uncertain-outcomes"
+id="toc-idempotency-and-uncertain-outcomes">Idempotency and uncertain
+outcomes</a></li>
+<li><a href="#request-efficiency" id="toc-request-efficiency">Request
+efficiency</a></li>
+<li><a href="#backward-compatibility"
+id="toc-backward-compatibility">Backward compatibility</a></li>
+<li><a href="#interview-answer-1" id="toc-interview-answer-1">Interview
+answer</a></li>
+</ul></li>
+<li><a href="#local-data-offline-first-and-synchronization"
+id="toc-local-data-offline-first-and-synchronization">Local Data,
+Offline-First, and Synchronization</a>
+<ul>
+<li><a href="#choose-the-offline-level"
+id="toc-choose-the-offline-level">Choose the offline level</a></li>
+<li><a href="#local-database-as-read-source"
+id="toc-local-database-as-read-source">Local database as read
+source</a></li>
+<li><a href="#cache-policy" id="toc-cache-policy">Cache policy</a></li>
+<li><a href="#durable-writes-with-an-outbox"
+id="toc-durable-writes-with-an-outbox">Durable writes with an
+outbox</a></li>
+<li><a href="#background-execution"
+id="toc-background-execution">Background execution</a></li>
+<li><a href="#sync-models" id="toc-sync-models">Sync models</a></li>
+<li><a href="#deletions-require-tombstones"
+id="toc-deletions-require-tombstones">Deletions require
+tombstones</a></li>
+<li><a href="#conflict-detection" id="toc-conflict-detection">Conflict
+detection</a></li>
+<li><a href="#multiple-devices" id="toc-multiple-devices">Multiple
+devices</a></li>
+<li><a href="#real-world-evidence-1"
+id="toc-real-world-evidence-1">Real-world evidence</a></li>
+<li><a href="#failure-checklist" id="toc-failure-checklist">Failure
+checklist</a></li>
+</ul></li>
+<li><a href="#media-and-large-file-transfers"
+id="toc-media-and-large-file-transfers">Media and Large-File
+Transfers</a>
+<ul>
+<li><a href="#separate-metadata-from-bytes"
+id="toc-separate-metadata-from-bytes">Separate metadata from
+bytes</a></li>
+<li><a href="#upload-patterns" id="toc-upload-patterns">Upload
+patterns</a></li>
+<li><a href="#what-chunking-doesand-does-not-do"
+id="toc-what-chunking-doesand-does-not-do">What chunking does—and does
+not do</a></li>
+<li><a href="#integrity" id="toc-integrity">Integrity</a></li>
+<li><a href="#background-transfers"
+id="toc-background-transfers">Background transfers</a></li>
+<li><a href="#download-design" id="toc-download-design">Download
+design</a></li>
+<li><a href="#image-delivery" id="toc-image-delivery">Image
+delivery</a></li>
+<li><a href="#video-and-audio" id="toc-video-and-audio">Video and
+audio</a></li>
+<li><a href="#production-examples"
+id="toc-production-examples">Production examples</a></li>
+<li><a href="#failure-checklist-1" id="toc-failure-checklist-1">Failure
+checklist</a></li>
+</ul></li>
+<li><a href="#security-and-privacy"
+id="toc-security-and-privacy">Security and Privacy</a></li>
+<li><a href="#performance-and-resource-efficiency"
+id="toc-performance-and-resource-efficiency">Performance and Resource
+Efficiency</a></li>
+<li><a href="#observability-releases-and-runtime-control"
+id="toc-observability-releases-and-runtime-control">Observability,
+Releases, and Runtime Control</a></li>
+<li><a href="#worked-designs" id="toc-worked-designs">Worked
+Designs</a></li>
+<li><a href="#decision-tables" id="toc-decision-tables">Decision
+Tables</a>
+<ul>
+<li><a href="#communication"
+id="toc-communication">Communication</a></li>
+<li><a href="#local-data" id="toc-local-data">Local data</a></li>
+<li><a href="#conflict-resolution" id="toc-conflict-resolution">Conflict
+resolution</a></li>
+<li><a href="#large-transfers" id="toc-large-transfers">Large
+transfers</a></li>
+</ul></li>
+<li><a href="#sources-and-further-reading"
+id="toc-sources-and-further-reading">Sources and Further Reading</a>
+<ul>
+<li><a href="#platform-architecture-and-background-work"
+id="toc-platform-architecture-and-background-work">Platform architecture
+and background work</a></li>
+<li><a href="#production-engineering"
+id="toc-production-engineering">Production engineering</a></li>
+<li><a href="#apis-and-transfers" id="toc-apis-and-transfers">APIs and
+transfers</a></li>
+<li><a href="#source-policy" id="toc-source-policy">Source
+policy</a></li>
+</ul></li>
+</ul>
+</nav>
+<section id="mobile-system-design" class="level1">
+<h1>Mobile System Design</h1>
+<p>A production-focused guide to designing Android and iOS
+applications.</p>
+<p>This book is for senior mobile engineers, engineering managers, and
+candidates preparing for client-side system-design interviews. It starts
+where most system-design videos stop: not merely naming concerns such as
+offline support, pagination, security, or battery use, but comparing
+concrete ways to solve them and explaining when each solution is
+appropriate.</p>
+<section id="status" class="level2">
+<h2>Status</h2>
+<p>This is an evolving book. The current checkpoint contains the
+complete book map and the first six foundation chapters. Later
+checkpoints will expand the production case studies and add
+implementation-level Android and iOS examples.</p>
+<p>Production systems are rarely public in full. This book labels
+examples:</p>
+<ul>
+<li><strong>Documented</strong> — supported by first-party documentation
+or an engineering article from the company.</li>
+<li><strong>Observable</strong> — behaviour a user can directly observe,
+without claiming to know the private implementation.</li>
+<li><strong>Illustrative design</strong> — a defensible architecture for
+an app like the named product, not a claim about its internal code.</li>
+</ul>
+<p>This distinction matters. “Google Drive supports resumable uploads”
+can be documented. “The Google Drive Android app uses exactly four
+parallel 8 MiB chunks” would be an unsupported claim unless Google
+published it.</p>
+</section>
+<section id="core-principle" class="level2">
+<h2>Core principle</h2>
+<p>There is no universally correct mobile architecture. A good design
+makes the product’s priorities explicit and chooses the simplest
+solution that meets them:</p>
+<blockquote>
+<p>requirement → constraint → decision → trade-off → measurement</p>
+</blockquote>
+</section>
+<section id="license" class="level2">
+<h2>License</h2>
+<p>Copyright © Shailesh Mota. A license will be selected before the
+first public release.</p>
+<div class="chapter-break"></div>
+
+</section>
+</section>
+<section id="how-to-use-this-book" class="level1">
+<h1>How to Use This Book</h1>
+<p>Mobile system design operates at three zoom levels.</p>
+<section id="level-1-product-system" class="level2">
+<h2>Level 1: Product system</h2>
+<p>Start outside the code:</p>
+<ul>
+<li>Who uses the product?</li>
+<li>What are the critical journeys?</li>
+<li>What devices, networks, countries, and accessibility needs
+matter?</li>
+<li>Which failures are tolerable?</li>
+<li>Which data is sensitive?</li>
+<li>What does “fast” mean for this product?</li>
+</ul>
+<p>Designing a banking app for recent flagship phones is different from
+designing a messaging app expected to work on inexpensive phones, in
+tunnels, across every language, and under aggressive background
+restrictions.</p>
+</section>
+<section id="level-2-application-architecture" class="level2">
+<h2>Level 2: Application architecture</h2>
+<p>Decide how the client remains understandable as both code and
+organization grow:</p>
+<ul>
+<li>state ownership;</li>
+<li>UI, domain, data, and platform boundaries;</li>
+<li>module boundaries;</li>
+<li>local source of truth;</li>
+<li>synchronization ownership;</li>
+<li>dependency direction;</li>
+<li>test seams;</li>
+<li>release and compatibility boundaries.</li>
+</ul>
+<p>The architecture must scale for people as well as traffic. A codebase
+touched by four engineers has different needs from one touched by
+hundreds.</p>
+</section>
+<section id="level-3-mechanism" class="level2">
+<h2>Level 3: Mechanism</h2>
+<p>Choose technologies and algorithms:</p>
+<ul>
+<li>REST, GraphQL, gRPC, WebSocket, SSE, or push;</li>
+<li>offset or cursor pagination;</li>
+<li>memory cache, disk cache, or local database;</li>
+<li>optimistic writes or server-confirmed writes;</li>
+<li>retry, backoff, deduplication, and idempotency;</li>
+<li>whole-file, streaming, multipart, or resumable transfers;</li>
+<li>last-write-wins, field merge, OT, or CRDT conflict resolution;</li>
+<li>Keychain/Keystore, transport encryption, or end-to-end
+encryption.</li>
+</ul>
+<p>Do not jump to this level too early. “Use WebSockets” is not a design
+until the delivery semantics, reconnection behaviour, background path,
+ordering, authentication, and observability are explained.</p>
+</section>
+<section id="two-suggested-reading-paths" class="level2">
+<h2>Two suggested reading paths</h2>
+<section id="interview-preparation" class="level3">
+<h3>Interview preparation</h3>
+<p>Read chapters 1, 2, 4, 5, 6, 11, then practise one worked design
+daily. For each design, speak aloud and time-box:</p>
+<ul>
+<li>5 minutes: clarify scope and priorities;</li>
+<li>10 minutes: high-level client architecture;</li>
+<li>20 minutes: two deep dives;</li>
+<li>5 minutes: failure modes, trade-offs, and measurement.</li>
+</ul>
+</section>
+<section id="production-reference" class="level3">
+<h3>Production reference</h3>
+<p>Read sequentially. Each chapter moves from the product problem to
+solution families, platform mechanisms, failure modes, and real-world
+evidence.</p>
+</section>
+</section>
+<section id="the-evidence-discipline" class="level2">
+<h2>The evidence discipline</h2>
+<p>Examples in this book intentionally avoid mythology. Engineering
+articles can become outdated, and a company may use different
+architectures across apps or platforms. Always preserve the date and
+scope of a source. A Dropbox desktop sync-engine article can teach sync
+invariants, but it is not proof that the Dropbox mobile app uses the
+identical engine.</p>
+<div class="chapter-break"></div>
+
+</section>
+</section>
+<section id="the-mobile-system-design-interview" class="level1">
+<h1>The Mobile System-Design Interview</h1>
+<p>The interviewer is not testing whether you memorized Instagram’s
+source code. They are testing whether you can turn an ambiguous product
+into a reasoned, operable client architecture.</p>
+<section id="a-repeatable-sequence" class="level2">
+<h2>A repeatable sequence</h2>
+<pre class="mermaid"><code>flowchart TD
+    A[&quot;Clarify users and scope&quot;] --&gt; B[&quot;Rank quality attributes&quot;]
+    B --&gt; C[&quot;Define data and state&quot;]
+    C --&gt; D[&quot;Draw client and server boundary&quot;]
+    D --&gt; E[&quot;Deep-dive critical flows&quot;]
+    E --&gt; F[&quot;Test failures and trade-offs&quot;]
+    F --&gt; G[&quot;Define production signals&quot;]</code></pre>
+</section>
+<section id="step-1-narrow-the-product" class="level2">
+<h2>Step 1: Narrow the product</h2>
+<p>Ask questions that change the design:</p>
+<ul>
+<li>Is this one-to-one chat, group chat, or both?</li>
+<li>Must messages work offline?</li>
+<li>Is delivery order required per conversation or globally?</li>
+<li>What is the largest supported attachment?</li>
+<li>Does the app support several signed-in accounts?</li>
+<li>Is end-to-end encryption required?</li>
+<li>Is the target global consumer scale or one enterprise?</li>
+<li>Which platforms are in scope?</li>
+</ul>
+<p>Avoid spending five minutes collecting facts that will never affect a
+decision. State sensible assumptions and move.</p>
+</section>
+<section id="step-2-rank-non-functional-requirements" class="level2">
+<h2>Step 2: Rank non-functional requirements</h2>
+<p>Do not say that everything is “highly scalable, secure, reliable, and
+fast.” Force an ordering.</p>
+<p>For a ride-tracking screen:</p>
+<ol type="1">
+<li>location freshness;</li>
+<li>graceful behaviour through short disconnections;</li>
+<li>battery efficiency;</li>
+<li>visual smoothness;</li>
+<li>historical completeness.</li>
+</ol>
+<p>For a banking transfer:</p>
+<ol type="1">
+<li>correctness and duplicate prevention;</li>
+<li>security and auditability;</li>
+<li>clear indeterminate-state recovery;</li>
+<li>availability;</li>
+<li>perceived speed.</li>
+</ol>
+<p>The order determines the architecture. A payment app should not turn
+a timeout into a blind retry. A social “like” can usually use optimistic
+UI and reconcile later.</p>
+</section>
+<section id="step-3-estimate-the-client-workload" class="level2">
+<h2>Step 3: Estimate the client workload</h2>
+<p>Backend interviews estimate global requests per second. Mobile
+interviews also estimate per-device cost:</p>
+<ul>
+<li>records visible in one screen;</li>
+<li>records cached locally;</li>
+<li>daily data transfer;</li>
+<li>average and worst-case media size;</li>
+<li>update frequency;</li>
+<li>database growth over months;</li>
+<li>number of concurrent operations;</li>
+<li>foreground and background duration;</li>
+<li>acceptable startup and interaction latency.</li>
+</ul>
+<p>Example for a photo feed:</p>
+<pre class="text"><code>20 cards/page × 200 KiB thumbnail ≈ 4 MiB/page
+5 pages/session × 3 sessions/day ≈ 60 MiB/day before caching</code></pre>
+<p>The estimate immediately creates design questions: thumbnail
+variants, next page prefetch, cellular policy, disk cache budget, and
+eviction.</p>
+</section>
+<section id="step-4-define-durable-state-before-drawing-layers"
+class="level2">
+<h2>Step 4: Define durable state before drawing layers</h2>
+<p>List the main entities and their lifecycle:</p>
+<pre class="text"><code>FeedItem(id, authorId, revision, createdAt, ...)
+Media(id, remoteUrl, localPath?, dimensions, transferState)
+PendingAction(clientOperationId, kind, payload, attempt, state)
+SyncCursor(stream, value, updatedAt)</code></pre>
+<p>Ask:</p>
+<ul>
+<li>Which state must survive process death?</li>
+<li>Which state is authoritative locally?</li>
+<li>Which values are server assigned?</li>
+<li>Which operations may be replayed?</li>
+<li>What represents “pending,” “failed,” or “unknown”?</li>
+</ul>
+<p>This is more useful than starting with boxes labelled ViewModel and
+Repository.</p>
+</section>
+<section id="step-5-draw-the-minimum-high-level-design" class="level2">
+<h2>Step 5: Draw the minimum high-level design</h2>
+<pre class="mermaid"><code>flowchart TD
+    UI[&quot;UI + state holder&quot;] --&gt; R[&quot;Feature repository&quot;]
+    R --&gt; DB[&quot;Local database&quot;]
+    R --&gt; Q[&quot;Durable operation queue&quot;]
+    S[&quot;Sync coordinator&quot;] --&gt; Q
+    S --&gt; API[&quot;Remote API&quot;]
+    API --&gt; B[&quot;Backend services&quot;]
+    S --&gt; DB</code></pre>
+<p>Explain the arrows:</p>
+<ul>
+<li>UI observes local state.</li>
+<li>User intent creates a local mutation and, when necessary, a durable
+pending operation.</li>
+<li>A sync coordinator sends eligible operations.</li>
+<li>Server responses update local state.</li>
+<li>The UI does not wait on a fragile network round trip to reconstruct
+state.</li>
+</ul>
+<p>Not every app needs this architecture. A small weather app might
+simply use a memory cache plus REST. Complexity must be purchased by a
+requirement.</p>
+</section>
+<section id="step-6-deep-dive-the-risky-flows" class="level2">
+<h2>Step 6: Deep-dive the risky flows</h2>
+<p>Choose two or three:</p>
+<ul>
+<li>interrupted attachment upload;</li>
+<li>reconnect after being offline for three days;</li>
+<li>duplicate payment submission;</li>
+<li>opening a feed from cold start;</li>
+<li>editing the same note on two devices;</li>
+<li>receiving a message while the process is dead;</li>
+<li>API schema evolution with old binaries installed.</li>
+</ul>
+<p>For each flow, narrate:</p>
+<ol type="1">
+<li>happy path;</li>
+<li>transient failure;</li>
+<li>process death;</li>
+<li>duplicate or out-of-order event;</li>
+<li>permanent failure;</li>
+<li>what the user sees;</li>
+<li>what production telemetry records.</li>
+</ol>
+</section>
+<section id="step-7-make-trade-offs-explicit" class="level2">
+<h2>Step 7: Make trade-offs explicit</h2>
+<p>Weak:</p>
+<blockquote>
+<p>I would use GraphQL because mobile needs smaller responses.</p>
+</blockquote>
+<p>Stronger:</p>
+<blockquote>
+<p>The home surface composes data owned by several backend domains and
+changes frequently. GraphQL lets the client request the fields needed by
+each version, but introduces query-cost controls, normalized-cache
+complexity, and another schema layer. If the screen has a stable payload
+and one backend owner, a versioned REST endpoint or mobile BFF is
+simpler.</p>
+</blockquote>
+</section>
+<section id="step-8-close-with-operation-not-architecture-theatre"
+class="level2">
+<h2>Step 8: Close with operation, not architecture theatre</h2>
+<p>Name the signals:</p>
+<ul>
+<li>cold-start p50/p95 by device class;</li>
+<li>screen load-to-content;</li>
+<li>cache hit rate;</li>
+<li>sync queue age;</li>
+<li>retry count and terminal failures;</li>
+<li>duplicate-operation rejection;</li>
+<li>crash-free sessions and ANR/hang rate;</li>
+<li>upload success by file size and network type;</li>
+<li>battery or background wake-up regressions;</li>
+<li>API errors segmented by app version.</li>
+</ul>
+</section>
+<section id="a-60-second-opening" class="level2">
+<h2>A 60-second opening</h2>
+<blockquote>
+<p>I’ll first clarify the users, critical journeys, and scale. Then I’ll
+rank the mobile quality attributes because reliability, latency,
+battery, and offline behaviour will drive different choices. I’ll define
+the client’s durable state, draw the client/server boundary, and then
+deep-dive the two hardest flows. I’ll finish with failure handling,
+security, observability, and the trade-offs of the alternatives.</p>
+</blockquote>
+</section>
+<section id="common-failure-modes-in-the-interview" class="level2">
+<h2>Common failure modes in the interview</h2>
+<ul>
+<li>Starting with a technology rather than a requirement.</li>
+<li>Reproducing a generic backend diagram and barely discussing the
+client.</li>
+<li>Saying “cache it” without freshness, invalidation, size, and
+ownership.</li>
+<li>Saying “offline-first” without a write queue and conflict
+strategy.</li>
+<li>Saying “retry” without idempotency, limits, or error
+classification.</li>
+<li>Assuming a background socket remains alive when the OS kills the
+app.</li>
+<li>Treating a timeout as failure when the server may have committed the
+action.</li>
+<li>Ignoring old installed binaries during API evolution.</li>
+<li>Listing alternatives without choosing one.</li>
+<li>Never describing what the user sees during uncertainty.</li>
+</ul>
+<div class="chapter-break"></div>
+
+</section>
+</section>
+<section id="users-requirements-and-constraints" class="level1">
+<h1>Users, Requirements, and Constraints</h1>
+<p>Mobile architecture begins with operating conditions, not
+frameworks.</p>
+<section id="characterize-the-users" class="level2">
+<h2>Characterize the users</h2>
+<p>Translate each user characteristic into a possible engineering
+consequence.</p>
+<table>
+<thead>
+<tr class="header">
+<th>User or context</th>
+<th>Possible consequence</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Low-end devices</td>
+<td>smaller memory budget, fewer concurrent decodes, reduced
+animation</td>
+</tr>
+<tr class="even">
+<td>Older OS versions</td>
+<td>compatibility layer, larger test matrix, fewer new platform
+APIs</td>
+</tr>
+<tr class="odd">
+<td>Intermittent connectivity</td>
+<td>durable local state, resumable operations, explicit staleness</td>
+</tr>
+<tr class="even">
+<td>Metered data</td>
+<td>thumbnails, adaptive quality, Wi-Fi-only transfer option</td>
+</tr>
+<tr class="odd">
+<td>Global audience</td>
+<td>localization, RTL, font coverage, regional latency</td>
+</tr>
+<tr class="even">
+<td>Accessibility needs</td>
+<td>semantic UI, dynamic type, screen-reader flows, larger targets</td>
+</tr>
+<tr class="odd">
+<td>Regulated work</td>
+<td>stronger authentication, audit trails, data retention controls</td>
+</tr>
+<tr class="even">
+<td>Shared devices</td>
+<td>account isolation, fast logout, encrypted local data</td>
+</tr>
+</tbody>
+</table>
+<p>Avoid stereotypes. Age does not imply technical inability. Use
+evidence about device distribution, accessibility, and support
+demand.</p>
+</section>
+<section id="functional-requirements-choose-journeys-not-feature-nouns"
+class="level2">
+<h2>Functional requirements: choose journeys, not feature nouns</h2>
+<p>“Profile,” “feed,” and “upload” are too shallow. Describe end-to-end
+behaviour:</p>
+<pre class="text"><code>The user selects a 2 GiB video, leaves the app, loses connectivity, reopens it
+tomorrow, and expects the upload to continue without starting from zero.</code></pre>
+<p>That journey implies:</p>
+<ul>
+<li>durable transfer metadata;</li>
+<li>background execution integration;</li>
+<li>resumable server protocol;</li>
+<li>network and battery constraints;</li>
+<li>integrity checks;</li>
+<li>visible progress;</li>
+<li>cleanup of abandoned sessions.</li>
+</ul>
+</section>
+<section id="quality-attributes" class="level2">
+<h2>Quality attributes</h2>
+<section id="reliability" class="level3">
+<h3>Reliability</h3>
+<p>Specify the unit:</p>
+<ul>
+<li>message eventually sent;</li>
+<li>file bytes durably uploaded;</li>
+<li>payment submitted at most once;</li>
+<li>local edit never silently lost;</li>
+<li>screen can render cached data during an outage.</li>
+</ul>
+<p>“99.9% reliable” is meaningless until the event and measurement
+window are defined.</p>
+</section>
+<section id="latency" class="level3">
+<h3>Latency</h3>
+<p>Split perceived latency:</p>
+<pre class="text"><code>tap
+→ local feedback
+→ cached content
+→ fresh network content
+→ background completeness</code></pre>
+<p>A UI can respond in 50 ms even when server confirmation takes two
+seconds. Optimistic state, skeletons, cached content, and prefetching
+optimize different parts of this timeline.</p>
+</section>
+<section id="freshness" class="level3">
+<h3>Freshness</h3>
+<p>Define a staleness budget:</p>
+<ul>
+<li>live driver position: seconds;</li>
+<li>chat presence: seconds to minutes;</li>
+<li>social feed: minutes may be acceptable;</li>
+<li>account balance after transfer: correctness over cached
+appearance;</li>
+<li>reference catalogue: hours or days.</li>
+</ul>
+<p>Freshness decides whether to use push, sockets, polling,
+refresh-on-open, TTL, or manual refresh.</p>
+</section>
+<section id="battery" class="level3">
+<h3>Battery</h3>
+<p>Battery cost comes from more than CPU:</p>
+<ul>
+<li>radio wake-ups;</li>
+<li>high-accuracy location;</li>
+<li>long-lived connections;</li>
+<li>frequent timers;</li>
+<li>repeated retries;</li>
+<li>background execution;</li>
+<li>media encoding and decoding;</li>
+<li>excessive rendering.</li>
+</ul>
+<p>Batching ten network operations is often cheaper than waking the
+radio ten times. Push notification services are generally more
+battery-efficient than each app continuously polling.</p>
+</section>
+<section id="memory" class="level3">
+<h3>Memory</h3>
+<p>Design for peak memory, not just stored file size. A compressed 12 MP
+JPEG may occupy tens of megabytes when decoded into a bitmap. Lists
+should load windows, not complete histories. Streams and file-backed
+uploads avoid reading an entire asset into memory.</p>
+</section>
+<section id="application-size" class="level3">
+<h3>Application size</h3>
+<p>Size affects installation conversion, updates, and storage pressure.
+Possible solutions include:</p>
+<ul>
+<li>architecture-specific binaries and app bundles;</li>
+<li>resource shrinking;</li>
+<li>removing unused assets and transitive dependencies;</li>
+<li>server-delivered content;</li>
+<li>dynamic feature delivery where platform and UX justify it;</li>
+<li>measuring the size contribution of each module.</li>
+</ul>
+</section>
+<section id="scale" class="level3">
+<h3>Scale</h3>
+<p>Separate four scales:</p>
+<ol type="1">
+<li>backend population and request volume;</li>
+<li>one account’s data size;</li>
+<li>one device’s local dataset;</li>
+<li>engineering organization and codebase size.</li>
+</ol>
+<p>A business chat app may have moderate global traffic but one
+enterprise account with enormous history. A consumer app can have
+billions of accounts while one device holds only a bounded cache.</p>
+</section>
+</section>
+<section id="turn-requirements-into-budgets" class="level2">
+<h2>Turn requirements into budgets</h2>
+<p>An interview-grade design should state provisional budgets:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Signal</th>
+<th style="text-align: right;">Example starting budget</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Cold start to usable content</td>
+<td style="text-align: right;">p95 under 2 s on supported mid-tier
+devices</td>
+</tr>
+<tr class="even">
+<td>Cached screen render</td>
+<td style="text-align: right;">under 200 ms</td>
+</tr>
+<tr class="odd">
+<td>Local interaction feedback</td>
+<td style="text-align: right;">under 100 ms</td>
+</tr>
+<tr class="even">
+<td>Pending mutation age online</td>
+<td style="text-align: right;">p95 under 10 s</td>
+</tr>
+<tr class="odd">
+<td>Crash-free sessions</td>
+<td style="text-align: right;">above 99.9%</td>
+</tr>
+<tr class="even">
+<td>Attachment upload recovery</td>
+<td style="text-align: right;">no restart after acknowledged chunks</td>
+</tr>
+<tr class="odd">
+<td>Disk cache</td>
+<td style="text-align: right;">bounded and evictable</td>
+</tr>
+</tbody>
+</table>
+<p>These are examples, not universal targets. The important move is to
+make the quality attribute measurable.</p>
+</section>
+<section id="real-world-evidence" class="level2">
+<h2>Real-world evidence</h2>
+<p><strong>Documented — Instagram:</strong> Meta has described Instagram
+background data prefetching as a way to reduce dependence on network
+availability while controlling cellular usage and improving perceived
+speed. This illustrates a trade-off, not a command to prefetch
+everything: the app predicts likely future demand and spends data,
+battery, and cache space to lower interaction latency.</p>
+<p><strong>Documented — Facebook iOS:</strong> Meta’s account of
+Facebook’s iOS architecture describes how feature growth allowed many
+products to add work to startup, creating a “tragedy of the commons.”
+The lesson is organizational: startup is a shared, budgeted resource,
+and module boundaries need governance.</p>
+<p><strong>Documented — Dropbox Carousel:</strong> Dropbox described
+designing a mobile photo experience for collections exceeding 100,000
+items and working around Android garbage-collection pressure. The lesson
+is to design lists and media pipelines for worst credible collections
+rather than demo-sized datasets.</p>
+</section>
+<section id="interview-checkpoint" class="level2">
+<h2>Interview checkpoint</h2>
+<p>Before proposing architecture, be able to say:</p>
+<blockquote>
+<p>The top priorities are X, Y, and Z. I am deliberately accepting A to
+improve B. I will validate that choice with metrics C and D.</p>
+</blockquote>
+<div class="chapter-break"></div>
+
+</section>
+</section>
+<section id="client-architecture-at-scale" class="level1">
+<h1>Client Architecture at Scale</h1>
+<p>Architecture determines where decisions live, how state flows, and
+how teams change the system safely. Pattern names are secondary.</p>
+<section id="begin-with-responsibilities" class="level2">
+<h2>Begin with responsibilities</h2>
+<p>A scalable client commonly needs:</p>
+<ul>
+<li><strong>UI rendering:</strong> maps state to pixels and
+accessibility semantics;</li>
+<li><strong>state holder:</strong> owns screen state and processes user
+events;</li>
+<li><strong>domain policy:</strong> reusable business rules when
+complexity justifies it;</li>
+<li><strong>repository:</strong> owns a business data type across data
+sources;</li>
+<li><strong>local data source:</strong> database, files, or
+preferences;</li>
+<li><strong>remote data source:</strong> protocol and DTO handling;</li>
+<li><strong>sync coordinator:</strong> schedules and reconciles durable
+work;</li>
+<li><strong>platform adapters:</strong> permissions, notifications,
+background tasks, sensors;</li>
+<li><strong>observability:</strong> traces important transitions without
+leaking private data.</li>
+</ul>
+</section>
+<section id="a-pragmatic-layered-architecture" class="level2">
+<h2>A pragmatic layered architecture</h2>
+<pre class="mermaid"><code>flowchart TD
+    UI[&quot;UI&quot;] --&gt; SH[&quot;State holder&quot;]
+    SH --&gt; UC[&quot;Use cases (optional)&quot;]
+    SH --&gt; R[&quot;Repositories&quot;]
+    UC --&gt; R
+    R --&gt; L[&quot;Local sources&quot;]
+    R --&gt; N[&quot;Remote sources&quot;]
+    SC[&quot;Sync coordinator&quot;] --&gt; R
+    PA[&quot;Platform adapters&quot;] --&gt; SC</code></pre>
+<p>Dependency direction protects business policy from UI and transport
+details. It does not require one class for every arrow.</p>
+</section>
+<section id="mvvm-mvi-and-unidirectional-data-flow" class="level2">
+<h2>MVVM, MVI, and unidirectional data flow</h2>
+<section id="mvvm" class="level3">
+<h3>MVVM</h3>
+<p>Useful when screen state can be exposed by a state holder and user
+actions map to clear methods. It is familiar on Android and iOS
+variants.</p>
+<p>Risks:</p>
+<ul>
+<li>state split across many observable properties;</li>
+<li>invisible event ordering;</li>
+<li>two-way binding creating unclear ownership;</li>
+<li>ViewModels becoming feature-wide service locators.</li>
+</ul>
+</section>
+<section id="mvireducer-style-state" class="level3">
+<h3>MVI/reducer-style state</h3>
+<p>Events produce a new immutable state, often through reducers:</p>
+<pre class="text"><code>State + Intent → Result/Effect → New State</code></pre>
+<p>Useful for complex state transitions, reproducibility, and
+debugging.</p>
+<p>Costs:</p>
+<ul>
+<li>ceremony for simple screens;</li>
+<li>accidental giant state objects;</li>
+<li>one-off effects such as navigation need a deliberate model;</li>
+<li>naive copying can be expensive, though persistent/structurally
+shared data structures and scoped state reduce the cost.</li>
+</ul>
+</section>
+<section id="decision" class="level3">
+<h3>Decision</h3>
+<p>Use the smallest state model that makes transitions explicit.
+Consistency across a large organization may be more valuable than
+choosing the theoretically perfect pattern per screen.</p>
+</section>
+</section>
+<section id="is-a-domain-layer-necessary" class="level2">
+<h2>Is a domain layer necessary?</h2>
+<p>Use cases are valuable when:</p>
+<ul>
+<li>rules combine several repositories;</li>
+<li>a policy is reused across screens or platforms;</li>
+<li>the same action can be triggered by UI and background work;</li>
+<li>authorization or validation must not be bypassed;</li>
+<li>the rule deserves focused tests.</li>
+</ul>
+<p>Skip pass-through use cases that only rename a repository call.
+Android’s official architecture guidance also describes the domain layer
+as optional.</p>
+</section>
+<section id="repository-what-it-should-mean" class="level2">
+<h2>Repository: what it should mean</h2>
+<p>A repository is not merely an API wrapper. It owns access and
+mutation policy for a business concept.</p>
+<div class="sourceCode" id="cb9"><pre
+class="sourceCode kotlin"><code class="sourceCode kotlin"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">interface</span> NotesRepository <span class="op">{</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">fun</span> <span class="fu">observeNote</span><span class="op">(</span><span class="va">id</span><span class="op">:</span> <span class="dt">NoteId</span><span class="op">):</span> <span class="dt">Flow</span><span class="op">&lt;</span><span class="dt">Note</span><span class="op">&gt;</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">suspend</span> <span class="kw">fun</span> <span class="fu">edit</span><span class="op">(</span><span class="va">id</span><span class="op">:</span> <span class="dt">NoteId</span><span class="op">,</span> <span class="va">patch</span><span class="op">:</span> <span class="dt">NotePatch</span><span class="op">):</span> <span class="dt">EditReceipt</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">suspend</span> <span class="kw">fun</span> <span class="fu">refresh</span><span class="op">(</span><span class="va">id</span><span class="op">:</span> <span class="dt">NoteId</span><span class="op">)</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<p>The UI should not decide whether <code>observeNote</code> reads Room,
+memory, or the network. Nor should it coordinate an outbox
+transaction.</p>
+<p>Repository failure modes:</p>
+<ul>
+<li>one “God repository” for the entire app;</li>
+<li>leaking network DTOs into UI;</li>
+<li>silently swallowing sync errors;</li>
+<li>mixing UI formatting with durable business state;</li>
+<li>exposing both database and network versions and forcing callers to
+reconcile.</li>
+</ul>
+</section>
+<section id="feature-and-layer-modularization" class="level2">
+<h2>Feature and layer modularization</h2>
+<section id="by-feature" class="level3">
+<h3>By feature</h3>
+<pre class="text"><code>features/
+  feed/
+  profile/
+  messaging/
+platform/
+  networking/
+  storage/
+  observability/</code></pre>
+<p>Benefits:</p>
+<ul>
+<li>clearer product ownership;</li>
+<li>localized changes;</li>
+<li>potential build parallelism;</li>
+<li>fewer accidental dependencies.</li>
+</ul>
+<p>Risks:</p>
+<ul>
+<li>duplicated infrastructure;</li>
+<li>feature-to-feature dependency mesh;</li>
+<li>unclear shared model ownership.</li>
+</ul>
+</section>
+<section id="by-technical-layer" class="level3">
+<h3>By technical layer</h3>
+<pre class="text"><code>ui/
+domain/
+data/
+network/</code></pre>
+<p>Simple initially, but every feature touches every module and
+ownership becomes horizontal.</p>
+</section>
+<section id="hybrid" class="level3">
+<h3>Hybrid</h3>
+<p>Large apps commonly benefit from feature modules plus a small set of
+governed platform capabilities. Dependency rules should be mechanically
+checked.</p>
+</section>
+</section>
+<section id="state-has-several-lifetimes" class="level2">
+<h2>State has several lifetimes</h2>
+<table>
+<thead>
+<tr class="header">
+<th>State</th>
+<th>Example</th>
+<th>Appropriate home</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Frame/transient UI</td>
+<td>pressed state</td>
+<td>UI toolkit</td>
+</tr>
+<tr class="even">
+<td>Screen state</td>
+<td>filters, selected tab</td>
+<td>state holder</td>
+</tr>
+<tr class="odd">
+<td>Navigation session</td>
+<td>current flow step</td>
+<td>navigation state</td>
+</tr>
+<tr class="even">
+<td>Process-restorable</td>
+<td>draft ID, scroll anchor</td>
+<td>saved state</td>
+</tr>
+<tr class="odd">
+<td>Durable local business state</td>
+<td>note, message, pending upload</td>
+<td>database/files</td>
+</tr>
+<tr class="even">
+<td>Server-authoritative</td>
+<td>permissions, settled payment</td>
+<td>server plus local projection</td>
+</tr>
+</tbody>
+</table>
+<p>A common production bug is storing durable work only in a ViewModel.
+Process death then turns an upload or outgoing message into lost
+intent.</p>
+</section>
+<section id="multi-platform-choices" class="level2">
+<h2>Multi-platform choices</h2>
+<section id="separate-native-apps" class="level3">
+<h3>Separate native apps</h3>
+<p>Best platform integration and independent evolution; highest
+duplicated effort.</p>
+</section>
+<section id="shared-domaindata-code" class="level3">
+<h3>Shared domain/data code</h3>
+<p>Kotlin Multiplatform, C++, or Rust can share protocol, cryptography,
+storage, or business logic while UIs remain native. This is attractive
+where consistency is more important than UI sharing.</p>
+<p>Costs include interop boundaries, debugging, build tooling, and
+shared-core release coordination.</p>
+</section>
+<section id="shared-ui-frameworks" class="level3">
+<h3>Shared UI frameworks</h3>
+<p>React Native, Flutter, and other frameworks can increase product-code
+sharing. Evaluate:</p>
+<ul>
+<li>startup path;</li>
+<li>binary size;</li>
+<li>accessibility;</li>
+<li>platform API lag;</li>
+<li>native escape hatches;</li>
+<li>performance of critical surfaces;</li>
+<li>team skill and ownership;</li>
+<li>upgrade burden.</li>
+</ul>
+<p><strong>Documented — Meta:</strong> Meta has described using React
+Native for product surfaces and measuring its cold-start implications,
+while Facebook and Instagram also contain substantial native and
+company-specific infrastructure. The useful lesson is per-surface
+measurement, not “React Native is always native-fast.”</p>
+</section>
+</section>
+<section id="architecture-fitness-functions" class="level2">
+<h2>Architecture fitness functions</h2>
+<p>Architecture should be enforceable and measurable:</p>
+<ul>
+<li>forbidden module dependency checks;</li>
+<li>API visibility rules;</li>
+<li>build time by module;</li>
+<li>startup ownership and budgets;</li>
+<li>database migration tests;</li>
+<li>contract compatibility tests;</li>
+<li>state-transition tests;</li>
+<li>number of cyclic dependencies;</li>
+<li>percentage of features using the standard observability path.</li>
+</ul>
+</section>
+<section id="interview-answer" class="level2">
+<h2>Interview answer</h2>
+<blockquote>
+<p>I would use feature-oriented modules with shared networking, storage,
+authentication, and observability capabilities. Each feature exposes a
+UI contract and owns its state holder and repository. The local database
+is the read source for offline-capable data. A domain layer is optional:
+I add use cases only for reusable or cross-repository policy. Durable
+work belongs in storage and a sync coordinator, not in screen lifecycle
+objects.</p>
+</blockquote>
+<div class="chapter-break"></div>
+
+</section>
+</section>
+<section id="networking-and-api-design" class="level1">
+<h1>Networking and API Design</h1>
+<p>Protocol selection follows interaction shape.</p>
+<section id="communication-models" class="level2">
+<h2>Communication models</h2>
+<table>
+<thead>
+<tr class="header">
+<th>Model</th>
+<th>Best fit</th>
+<th>Main costs</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>REST/HTTP</td>
+<td>resource operations, cacheable reads, broad tooling</td>
+<td>over/under-fetching, endpoint proliferation</td>
+</tr>
+<tr class="even">
+<td>GraphQL</td>
+<td>client-shaped composite screens, evolving field needs</td>
+<td>cache normalization, query cost, schema governance</td>
+</tr>
+<tr class="odd">
+<td>gRPC</td>
+<td>typed internal contracts, streaming, compact binary payloads</td>
+<td>browser constraints, debugging and gateway complexity</td>
+</tr>
+<tr class="even">
+<td>WebSocket</td>
+<td>foreground bidirectional low-latency events</td>
+<td>connection lifecycle, ordering, reconnect storms</td>
+</tr>
+<tr class="odd">
+<td>SSE</td>
+<td>server-to-client foreground event stream</td>
+<td>one direction, mobile background limits</td>
+</tr>
+<tr class="even">
+<td>Push</td>
+<td>wake-up or user notification when app is not active</td>
+<td>best-effort, platform mediation, payload limits</td>
+</tr>
+<tr class="odd">
+<td>Polling</td>
+<td>simple low-frequency freshness</td>
+<td>latency, data and battery cost</td>
+</tr>
+</tbody>
+</table>
+<p>Many production apps combine them. A chat app may send foreground
+messages over a WebSocket, fetch history through HTTP, upload
+attachments to object storage, and rely on APNs/FCM when suspended or
+killed.</p>
+</section>
+<section id="rest" class="level2">
+<h2>REST</h2>
+<p>REST is a good default when resources and operations are stable.</p>
+<pre class="http"><code>GET /v2/conversations/abc/messages?before=cursor&amp;limit=50
+POST /v2/conversations/abc/messages
+Idempotency-Key: 018f...</code></pre>
+<p>Design considerations:</p>
+<ul>
+<li>stable identifiers;</li>
+<li>explicit pagination;</li>
+<li>conditional requests with ETag/If-None-Match;</li>
+<li>compression;</li>
+<li>field and endpoint deprecation policy;</li>
+<li>structured error codes;</li>
+<li>client operation IDs;</li>
+<li>server timestamps and revisions;</li>
+<li>request deadlines.</li>
+</ul>
+</section>
+<section id="graphql" class="level2">
+<h2>GraphQL</h2>
+<p>GraphQL helps when one screen needs a changing composition of
+data:</p>
+<div class="sourceCode" id="cb13"><pre
+class="sourceCode graphql"><code class="sourceCode graphql"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">query</span> Home(<span class="va">$after</span>: Cursor) {</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>  viewer {</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>    profile { displayName avatar(size: SMALL) }</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>    feed(after: <span class="va">$after</span>, first: <span class="dv">20</span>) {</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>      edges { cursor node { id revision summary } }</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<p>It does not automatically make mobile faster. A good design still
+needs:</p>
+<ul>
+<li>persisted queries or query allowlists;</li>
+<li>response and normalized-cache policy;</li>
+<li>pagination conventions;</li>
+<li>query depth/cost limits;</li>
+<li>error semantics for partial data;</li>
+<li>schema compatibility;</li>
+<li>observability by operation name;</li>
+<li>protection against one screen creating an expensive backend
+fan-out.</li>
+</ul>
+</section>
+<section id="websockets" class="level2">
+<h2>WebSockets</h2>
+<p>A socket is a transport, not a messaging guarantee.</p>
+<p>Define:</p>
+<ul>
+<li>connection authentication and token refresh;</li>
+<li>heartbeat strategy;</li>
+<li>reconnect with exponential backoff and jitter;</li>
+<li>network-change handling;</li>
+<li>session resume cursor;</li>
+<li>per-stream ordering;</li>
+<li>acknowledgement semantics;</li>
+<li>duplicate detection;</li>
+<li>maximum buffered data;</li>
+<li>foreground/background transition;</li>
+<li>fallback when the process is dead.</li>
+</ul>
+<p>Example event envelope:</p>
+<div class="sourceCode" id="cb14"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;eventId&quot;</span><span class="fu">:</span> <span class="st">&quot;evt_984&quot;</span><span class="fu">,</span></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;stream&quot;</span><span class="fu">:</span> <span class="st">&quot;conversation_123&quot;</span><span class="fu">,</span></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;sequence&quot;</span><span class="fu">:</span> <span class="dv">4831</span><span class="fu">,</span></span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;message.created&quot;</span><span class="fu">,</span></span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;payload&quot;</span><span class="fu">:</span> <span class="fu">{</span><span class="dt">&quot;messageId&quot;</span><span class="fu">:</span> <span class="st">&quot;m_91&quot;</span><span class="fu">},</span></span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;serverTime&quot;</span><span class="fu">:</span> <span class="st">&quot;2026-07-30T09:00:00Z&quot;</span></span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p>On reconnect, the client sends its last applied cursor. The server
+returns missed events or tells the client to perform a full resync if
+history has expired.</p>
+</section>
+<section id="push-notification-is-a-hint-not-a-database" class="level2">
+<h2>Push notification is a hint, not a database</h2>
+<p>APNs and FCM are essential when the app cannot keep its own process
+and socket alive. Treat push as:</p>
+<ul>
+<li>a user-visible notification; or</li>
+<li>a hint that fresh data may exist.</li>
+</ul>
+<p>Do not assume exactly-once delivery or global ordering. When opened
+or awakened, the app reconciles against authoritative server state.
+Sensitive payloads should be minimized; notification previews are a
+product/privacy decision.</p>
+</section>
+<section id="pagination" class="level2">
+<h2>Pagination</h2>
+<section id="offset-pagination" class="level3">
+<h3>Offset pagination</h3>
+<pre class="http"><code>GET /items?offset=100&amp;limit=20</code></pre>
+<p>Simple and supports jumping to a page. Concurrent
+insertions/deletions can cause duplicates or gaps, and large offsets may
+be expensive.</p>
+</section>
+<section id="cursor-pagination" class="level3">
+<h3>Cursor pagination</h3>
+<pre class="http"><code>GET /items?after=opaque_cursor&amp;limit=20</code></pre>
+<p>Better for changing feeds and histories. The cursor should be opaque
+and tied to a stable sort order.</p>
+</section>
+<section id="keyset-pagination" class="level3">
+<h3>Keyset pagination</h3>
+<p>Conceptually:</p>
+<div class="sourceCode" id="cb17"><pre
+class="sourceCode sql"><code class="sourceCode sql"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="kw">WHERE</span> (created_at, <span class="kw">id</span>) <span class="op">&lt;</span> (<span class="ch">:created_at</span>, <span class="ch">:id</span>)</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="kw">ORDER</span> <span class="kw">BY</span> created_at <span class="kw">DESC</span>, <span class="kw">id</span> <span class="kw">DESC</span></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a><span class="kw">LIMIT</span> <span class="dv">20</span></span></code></pre></div>
+<p>The unique tie-breaker prevents records sharing a timestamp from
+being skipped.</p>
+<p>On the client, preserve page boundaries only if useful. Often it is
+simpler to merge records by stable ID into a database and query a local
+window.</p>
+</section>
+</section>
+<section id="retry-correctly" class="level2">
+<h2>Retry correctly</h2>
+<p>Classify failures:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Failure</th>
+<th>Typical response</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>No connectivity</td>
+<td>wait for network constraint</td>
+</tr>
+<tr class="even">
+<td>Timeout before response</td>
+<td>retry only if safe/idempotent</td>
+</tr>
+<tr class="odd">
+<td>HTTP 429</td>
+<td>respect Retry-After, back off</td>
+</tr>
+<tr class="even">
+<td>HTTP 5xx</td>
+<td>bounded exponential retry with jitter</td>
+</tr>
+<tr class="odd">
+<td>HTTP 401 expired token</td>
+<td>single coordinated refresh, then retry</td>
+</tr>
+<tr class="even">
+<td>HTTP 403</td>
+<td>do not retry blindly</td>
+</tr>
+<tr class="odd">
+<td>Validation error</td>
+<td>show actionable permanent failure</td>
+</tr>
+<tr class="even">
+<td>Conflict</td>
+<td>fetch revision and resolve policy</td>
+</tr>
+</tbody>
+</table>
+<p>Use exponential backoff:</p>
+<pre class="text"><code>delay = min(cap, base × 2^attempt) + random_jitter</code></pre>
+<p>Jitter prevents thousands of devices reconnecting simultaneously
+after an outage.</p>
+</section>
+<section id="idempotency-and-uncertain-outcomes" class="level2">
+<h2>Idempotency and uncertain outcomes</h2>
+<p>Suppose a payment request times out. The server may have committed it
+even though the response never reached the phone. Retrying with a new
+identifier can charge twice.</p>
+<p>The client creates a stable operation ID:</p>
+<pre class="http"><code>POST /payments
+Idempotency-Key: op_123</code></pre>
+<p>The server stores the result for that key. Repeating the request
+returns the same logical outcome.</p>
+<p>For local mutations, persist the operation and entity change
+atomically where possible:</p>
+<pre class="text"><code>database transaction:
+  update visible entity as pending
+  insert outbox operation with clientOperationId</code></pre>
+</section>
+<section id="request-efficiency" class="level2">
+<h2>Request efficiency</h2>
+<p>Concrete options:</p>
+<ul>
+<li>batch small independent writes;</li>
+<li>coalesce simultaneous identical reads;</li>
+<li>cancel obsolete search requests;</li>
+<li>debounce user input where semantics permit;</li>
+<li>request thumbnails rather than originals;</li>
+<li>compress suitable payloads;</li>
+<li>cache immutable assets by content hash;</li>
+<li>preconnect or prefetch only when prediction value exceeds cost;</li>
+<li>use a mobile BFF when a critical screen otherwise causes many serial
+calls.</li>
+</ul>
+</section>
+<section id="backward-compatibility" class="level2">
+<h2>Backward compatibility</h2>
+<p>Mobile binaries remain installed for months or years. The backend
+must:</p>
+<ul>
+<li>add fields compatibly;</li>
+<li>avoid changing existing field meaning;</li>
+<li>accept older enum behaviour;</li>
+<li>version destructive changes;</li>
+<li>maintain a minimum-supported-version policy;</li>
+<li>allow emergency kill switches without making startup depend entirely
+on remote configuration.</li>
+</ul>
+<p>Client parsers should tolerate unknown fields and, where possible,
+unknown enum values.</p>
+</section>
+<section id="interview-answer-1" class="level2">
+<h2>Interview answer</h2>
+<blockquote>
+<p>I’ll use HTTP for history and commands, object storage for media, and
+a WebSocket for foreground events. Push is the background wake-up path.
+Events carry IDs and per-stream sequence numbers; reconnect resumes from
+a cursor. Mutating requests use stable client operation IDs so timeout
+retries are idempotent. Lists use cursor pagination and merge into local
+storage by ID.</p>
+</blockquote>
+<div class="chapter-break"></div>
+
+</section>
+</section>
+<section id="local-data-offline-first-and-synchronization"
+class="level1">
+<h1>Local Data, Offline-First, and Synchronization</h1>
+<p>Offline-first is not “add a cache.” It is a consistency model, write
+policy, sync protocol, and user experience.</p>
+<section id="choose-the-offline-level" class="level2">
+<h2>Choose the offline level</h2>
+<table>
+<thead>
+<tr class="header">
+<th>Level</th>
+<th>Behaviour</th>
+<th>Suitable examples</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>No offline support</td>
+<td>error/empty state without network</td>
+<td>rare transactional utility</td>
+</tr>
+<tr class="even">
+<td>Cached reads</td>
+<td>previously seen content is readable</td>
+<td>news, profiles</td>
+</tr>
+<tr class="odd">
+<td>Queued simple writes</td>
+<td>actions send when online</td>
+<td>likes, read markers</td>
+</tr>
+<tr class="even">
+<td>Full offline editing</td>
+<td>create/update/delete locally</td>
+<td>notes, field work</td>
+</tr>
+<tr class="odd">
+<td>Collaborative local-first</td>
+<td>concurrent multi-device editing</td>
+<td>documents, whiteboards</td>
+</tr>
+</tbody>
+</table>
+<p>Do not buy full local-first complexity when cached reads meet the
+requirement.</p>
+</section>
+<section id="local-database-as-read-source" class="level2">
+<h2>Local database as read source</h2>
+<pre class="mermaid"><code>flowchart LR
+    UI[&quot;UI&quot;] --&gt;|&quot;observe&quot;| DB[&quot;Local database&quot;]
+    API[&quot;Remote API&quot;] --&gt; SYNC[&quot;Sync engine&quot;]
+    SYNC --&gt;|&quot;apply&quot;| DB
+    UI --&gt;|&quot;intent&quot;| TX[&quot;Local transaction&quot;]
+    TX --&gt; DB
+    TX --&gt; O[&quot;Outbox&quot;]
+    O --&gt; SYNC</code></pre>
+<p>The UI consistently reads one model. Network responses update the
+database; the database notifies observers.</p>
+<p>Android’s official offline-first guidance describes the local data
+source as the canonical source read by higher layers. On iOS, the same
+architecture can be implemented with Core Data, SQLite/GRDB, SwiftData
+where appropriate, or a purpose-built store.</p>
+</section>
+<section id="cache-policy" class="level2">
+<h2>Cache policy</h2>
+<section id="cache-first" class="level3">
+<h3>Cache-first</h3>
+<p>Show cached data immediately, refresh in the background.</p>
+<p>Good for feeds and content where some staleness is acceptable.</p>
+</section>
+<section id="network-first" class="level3">
+<h3>Network-first</h3>
+<p>Try fresh data, fall back to cache.</p>
+<p>Good where freshness matters but offline fallback still helps. It can
+make the common path feel slower if the client waits for a network
+timeout before using valid cache.</p>
+</section>
+<section id="stale-while-revalidate" class="level3">
+<h3>Stale-while-revalidate</h3>
+<p>Return cached content immediately and refresh concurrently. Mark or
+replace it when fresh data arrives.</p>
+</section>
+<section id="cache-onlyoffline-download" class="level3">
+<h3>Cache-only/offline download</h3>
+<p>User explicitly pins content. Eviction policy must distinguish pinned
+and reconstructible data.</p>
+<p>Define for each dataset:</p>
+<ul>
+<li>key;</li>
+<li>freshness/TTL;</li>
+<li>validation method;</li>
+<li>size budget;</li>
+<li>eviction;</li>
+<li>whether it is safe across accounts;</li>
+<li>whether it contains sensitive data;</li>
+<li>behaviour after schema migration.</li>
+</ul>
+</section>
+</section>
+<section id="durable-writes-with-an-outbox" class="level2">
+<h2>Durable writes with an outbox</h2>
+<p>For an offline note edit:</p>
+<pre class="text"><code>1. Generate clientOperationId.
+2. In one local transaction:
+   - apply the optimistic edit;
+   - increment local revision;
+   - insert pending operation.
+3. UI immediately renders pending state.
+4. Sync worker sends operation when constraints permit.
+5. Server accepts, rejects, or reports conflict.
+6. Client reconciles and marks operation completed or failed.</code></pre>
+<p>Suggested operation state:</p>
+<pre class="text"><code>ENQUEUED → RUNNING → ACKNOWLEDGED
+                ↘ RETRY_WAIT
+                ↘ BLOCKED_CONFLICT
+                ↘ FAILED_PERMANENT</code></pre>
+<p>Persist attempt count, next eligible time, last structured error, and
+dependencies. Do not persist secrets unnecessarily.</p>
+</section>
+<section id="background-execution" class="level2">
+<h2>Background execution</h2>
+<p>The operating system, not the app, controls background
+opportunity.</p>
+<p><strong>Android:</strong> WorkManager is appropriate for persistent,
+deferrable, constraint-aware work that should survive process or device
+restart. It supports network/charging constraints and backoff. It is not
+a promise to run at an exact second.</p>
+<p><strong>iOS:</strong> background <code>URLSession</code> supports
+system-managed file transfers. <code>BGTaskScheduler</code> offers
+discretionary refresh/processing opportunities. Design around suspension
+and relaunch rather than expecting an indefinitely running process.</p>
+<p>Keep enough state to resume safely after any instruction.</p>
+</section>
+<section id="sync-models" class="level2">
+<h2>Sync models</h2>
+<section id="full-snapshot" class="level3">
+<h3>Full snapshot</h3>
+<p>Fetch all records and replace local projection.</p>
+<p>Simple, useful for small bounded datasets. Wasteful and disruptive
+for large data.</p>
+</section>
+<section id="updated-since-timestamp" class="level3">
+<h3>Updated-since timestamp</h3>
+<p>Fetch records changed after a timestamp.</p>
+<p>Clock precision, equal timestamps, deletion, and server clock
+semantics make this easy to get wrong.</p>
+</section>
+<section id="cursorchange-token" class="level3">
+<h3>Cursor/change token</h3>
+<p>Server returns an opaque cursor with each ordered change page:</p>
+<div class="sourceCode" id="cb24"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;changes&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span><span class="dt">&quot;sequence&quot;</span><span class="fu">:</span> <span class="dv">42</span><span class="fu">,</span> <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;note.updated&quot;</span><span class="fu">,</span> <span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="st">&quot;n1&quot;</span><span class="fu">,</span> <span class="dt">&quot;revision&quot;</span><span class="fu">:</span> <span class="dv">7</span><span class="fu">}</span><span class="ot">,</span></span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span><span class="dt">&quot;sequence&quot;</span><span class="fu">:</span> <span class="dv">43</span><span class="fu">,</span> <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;note.deleted&quot;</span><span class="fu">,</span> <span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="st">&quot;n2&quot;</span><span class="fu">}</span></span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;nextCursor&quot;</span><span class="fu">:</span> <span class="st">&quot;opaque_43&quot;</span><span class="fu">,</span></span>
+<span id="cb24-7"><a href="#cb24-7" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;hasMore&quot;</span><span class="fu">:</span> <span class="kw">false</span></span>
+<span id="cb24-8"><a href="#cb24-8" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p>Apply a page and save its cursor atomically. If the app dies before
+commit, it replays the page safely. Upserts and tombstones must be
+idempotent.</p>
+</section>
+<section id="merkle-treescontent-hashes" class="level3">
+<h3>Merkle trees/content hashes</h3>
+<p>Useful for comparing large hierarchies or content-addressed data
+without transmitting every item. More complex than a linear change
+stream.</p>
+</section>
+</section>
+<section id="deletions-require-tombstones" class="level2">
+<h2>Deletions require tombstones</h2>
+<p>If a deleted record simply disappears from the server, an offline
+device cannot know to remove its local copy. A tombstone records
+identity, deletion revision, and retention window.</p>
+<p>The server retains tombstones long enough for supported offline
+periods. A client whose cursor is older than the retention window
+performs a full resync.</p>
+</section>
+<section id="conflict-detection" class="level2">
+<h2>Conflict detection</h2>
+<section id="optimistic-concurrency" class="level3">
+<h3>Optimistic concurrency</h3>
+<p>Client sends the base revision:</p>
+<pre class="http"><code>PATCH /notes/n1
+If-Match: revision-7</code></pre>
+<p>If the server is now at revision 8, it returns a conflict rather than
+silently overwriting.</p>
+</section>
+<section id="conflict-resolution-strategies" class="level3">
+<h3>Conflict resolution strategies</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Strategy</th>
+<th>Works for</th>
+<th>Cost/risk</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Server wins</td>
+<td>server-owned policy</td>
+<td>may discard local intent</td>
+</tr>
+<tr class="even">
+<td>Client wins</td>
+<td>single-user replaceable state</td>
+<td>can overwrite newer remote data</td>
+</tr>
+<tr class="odd">
+<td>Last-write-wins</td>
+<td>low-value independent state</td>
+<td>clocks/order may not reflect intent</td>
+</tr>
+<tr class="even">
+<td>Field-level merge</td>
+<td>disjoint profile/settings edits</td>
+<td>same-field conflicts remain</td>
+</tr>
+<tr class="odd">
+<td>Append-only</td>
+<td>messages, audit events</td>
+<td>edits/deletes need separate semantics</td>
+</tr>
+<tr class="even">
+<td>User resolution</td>
+<td>rare high-value conflicts</td>
+<td>interrupts user</td>
+</tr>
+<tr class="odd">
+<td>OT</td>
+<td>centralized collaborative text</td>
+<td>algorithm and transformation complexity</td>
+</tr>
+<tr class="even">
+<td>CRDT</td>
+<td>concurrent local-first collaboration</td>
+<td>metadata and model complexity</td>
+</tr>
+</tbody>
+</table>
+<p>The data type should drive the strategy. A profile avatar can be
+last-write-wins. A bank balance cannot. A text document may need
+semantic collaboration.</p>
+</section>
+</section>
+<section id="multiple-devices" class="level2">
+<h2>Multiple devices</h2>
+<p>Give each device and operation a stable ID. Separate:</p>
+<ul>
+<li>user identity;</li>
+<li>device installation identity;</li>
+<li>session;</li>
+<li>client operation identity;</li>
+<li>server entity identity.</li>
+</ul>
+<p>Do not use a device clock as the only global ordering authority.
+Server revisions or logical clocks are safer.</p>
+</section>
+<section id="real-world-evidence-1" class="level2">
+<h2>Real-world evidence</h2>
+<p><strong>Documented — Dropbox:</strong> Dropbox describes sync engines
+as coordinating local and remote filesystem state and emphasizes that a
+clean data model became critical at enormous file and revision scale.
+Its published Nucleus article is about desktop sync; this book uses its
+invariants as general sync evidence, not as a claim about Dropbox mobile
+internals.</p>
+<p><strong>Documented — Dropbox Carousel:</strong> Dropbox described a
+network-backed mobile photo app designed to feel local and to represent
+local and remote photos together. This is a canonical “local projection
+of distributed state” problem.</p>
+<p><strong>Observable — Spotify:</strong> downloaded playlists remain
+playable without a network connection and later reconcile
+catalogue/account state. An interview-grade design would separate pinned
+media blobs, metadata, entitlement state, and a sync cursor. This is an
+illustrative design, not a claim about Spotify’s private schema.</p>
+</section>
+<section id="failure-checklist" class="level2">
+<h2>Failure checklist</h2>
+<ul>
+<li>app dies between local mutation and outbox insertion;</li>
+<li>same operation delivered twice;</li>
+<li>events arrive out of order;</li>
+<li>token expires halfway through sync;</li>
+<li>account changes while work is queued;</li>
+<li>schema migration runs with pending operations;</li>
+<li>tombstone retention expires;</li>
+<li>server accepts write but response is lost;</li>
+<li>permanent error retries forever;</li>
+<li>one poisoned operation blocks the entire queue;</li>
+<li>conflict is silently resolved and loses meaningful work.</li>
+</ul>
+<div class="chapter-break"></div>
+
+</section>
+</section>
+<section id="media-and-large-file-transfers" class="level1">
+<h1>Media and Large-File Transfers</h1>
+<p>Large media turns memory, networking, storage, background execution,
+and user feedback into one system.</p>
+<section id="separate-metadata-from-bytes" class="level2">
+<h2>Separate metadata from bytes</h2>
+<p>Create the logical media record before or alongside the byte
+transfer:</p>
+<pre class="text"><code>MediaAsset(
+  id,
+  ownerId,
+  localUri,
+  remoteObjectKey?,
+  mimeType,
+  byteCount,
+  checksum?,
+  width?,
+  height?,
+  duration?,
+  transferState
+)</code></pre>
+<p>The feed or message references the asset ID. Upload completion can
+transition the containing entity without forcing raw bytes through the
+main API service.</p>
+</section>
+<section id="upload-patterns" class="level2">
+<h2>Upload patterns</h2>
+<section id="single-request" class="level3">
+<h3>Single request</h3>
+<p>Best for small bounded objects. Simple, but any interruption may
+restart the whole transfer.</p>
+</section>
+<section id="streaming-request" class="level3">
+<h3>Streaming request</h3>
+<p>Reads from file incrementally rather than loading all bytes into
+memory. It controls memory but is not automatically resumable.</p>
+</section>
+<section id="resumable-upload" class="level3">
+<h3>Resumable upload</h3>
+<p>Typical flow:</p>
+<pre class="text"><code>1. Create upload session and obtain session URL/ID.
+2. Send a byte range or part.
+3. Server acknowledges durable offset/part.
+4. Persist acknowledged progress locally.
+5. Resume from server-confirmed position after interruption.
+6. Finalize and verify full object.</code></pre>
+</section>
+<section id="multipart-parallel-upload" class="level3">
+<h3>Multipart parallel upload</h3>
+<p>Parts can transfer concurrently and be assembled by object
+storage.</p>
+<p>Benefits:</p>
+<ul>
+<li>higher throughput on suitable networks;</li>
+<li>retry only failed parts;</li>
+<li>bounded memory if file-backed.</li>
+</ul>
+<p>Costs:</p>
+<ul>
+<li>more radio/CPU use;</li>
+<li>server session and part cleanup;</li>
+<li>ordering/assembly metadata;</li>
+<li>too much parallelism competes with UI and other apps;</li>
+<li>small parts create request overhead.</li>
+</ul>
+<p>Adaptive concurrency is better than a magic fixed number.</p>
+</section>
+</section>
+<section id="what-chunking-doesand-does-not-do" class="level2">
+<h2>What chunking does—and does not do</h2>
+<p>Chunking provides:</p>
+<ul>
+<li>resumability;</li>
+<li>bounded buffering;</li>
+<li>localized retry;</li>
+<li>progress checkpoints;</li>
+<li>optional parallelism;</li>
+<li>part-level integrity checks.</li>
+</ul>
+<p>It does not inherently reduce the number of bytes. It can be faster
+through parallelism or avoided retransmission, but it can also add
+requests and bookkeeping.</p>
+</section>
+<section id="integrity" class="level2">
+<h2>Integrity</h2>
+<p>Possible levels:</p>
+<ul>
+<li>transport integrity from TLS/TCP;</li>
+<li>per-part checksum;</li>
+<li>full-object checksum;</li>
+<li>content hash used as object identity;</li>
+<li>encrypted authenticated chunks.</li>
+</ul>
+<p>Never treat an ETag as a universal MD5 checksum; semantics vary by
+storage provider and multipart mode.</p>
+</section>
+<section id="background-transfers" class="level2">
+<h2>Background transfers</h2>
+<p><strong>Documented — iOS:</strong> Apple’s background
+<code>URLSession</code> allows HTTP(S) upload and download work to be
+managed outside the application process. Apple also documents resumable
+upload support. The app still needs durable mapping between system task
+identifiers and product entities.</p>
+<p><strong>Documented — Android:</strong> WorkManager supports
+persistent constraint-aware work, including long-running work where
+appropriate. For user-important active transfers, Android
+foreground-service requirements and user-visible notifications may apply
+depending on OS version and transfer model.</p>
+</section>
+<section id="download-design" class="level2">
+<h2>Download design</h2>
+<p>Decide:</p>
+<ul>
+<li>stream for immediate consumption or save first;</li>
+<li>range requests for seeking/resume;</li>
+<li>temporary versus pinned storage;</li>
+<li>expected content length;</li>
+<li>checksum;</li>
+<li>encryption/decryption path;</li>
+<li>cache eviction;</li>
+<li>cellular and roaming policy;</li>
+<li>partial-file naming and cleanup.</li>
+</ul>
+<p>Write partial content to a temporary path, then atomically publish it
+after verification. A crash should not make a truncated file appear
+complete.</p>
+</section>
+<section id="image-delivery" class="level2">
+<h2>Image delivery</h2>
+<p>Serve variants appropriate to the display:</p>
+<ul>
+<li>thumbnail for lists;</li>
+<li>screen-sized image for detail;</li>
+<li>original only for zoom/export;</li>
+<li>modern codecs where support and server pipeline justify them.</li>
+</ul>
+<p>Client pipeline:</p>
+<pre class="text"><code>memory cache
+→ disk cache
+→ network
+→ decode near target size
+→ render</code></pre>
+<p>Cache keys should incorporate transformations and content revision.
+Immutable content-addressed URLs simplify invalidation.</p>
+</section>
+<section id="video-and-audio" class="level2">
+<h2>Video and audio</h2>
+<p>For playback, adaptive segmented streaming such as HLS or DASH lets
+the player choose quality based on bandwidth and buffer. Progressive
+download may be sufficient for small simple media.</p>
+<p>Measure:</p>
+<ul>
+<li>time to first frame/audio;</li>
+<li>rebuffer ratio;</li>
+<li>selected bitrate;</li>
+<li>playback failure;</li>
+<li>bytes wasted after abandonment;</li>
+<li>offline-license/entitlement failures where relevant.</li>
+</ul>
+</section>
+<section id="production-examples" class="level2">
+<h2>Production examples</h2>
+<p><strong>Documented — Google Drive API:</strong> Google documents
+resumable uploads intended for large files and interruption-prone
+networks. A resumable session persists progress so a client can continue
+rather than resend the whole file. This is evidence for the protocol
+family; the exact consumer Drive app implementation must not be
+invented.</p>
+<p><strong>Documented — Apple:</strong> Apple’s robust and resumable
+transfer material explains pause/resume and background file-transfer
+mechanisms available to iOS apps.</p>
+<p><strong>Illustrative — a Drive-like mobile app:</strong> persist
+upload session ID, next acknowledged offset, local file identity,
+account, total size, checksum, attempts, and expiry. Before resuming,
+confirm the local asset still represents the same bytes. Query server
+progress when the last acknowledgement is uncertain.</p>
+<p><strong>Illustrative — an Instagram-like feed:</strong> request small
+preview variants, prefetch the next likely assets under budget, cancel
+obsolete work during fast scroll, bound decoded bitmap memory, and avoid
+downloading full-resolution media until required.</p>
+</section>
+<section id="failure-checklist-1" class="level2">
+<h2>Failure checklist</h2>
+<ul>
+<li>local file changed after upload began;</li>
+<li>server session expired;</li>
+<li>last part committed but acknowledgement was lost;</li>
+<li>process dies after OS transfer completes but before database
+update;</li>
+<li>user logs out while background transfer runs;</li>
+<li>checksum mismatch;</li>
+<li>storage fills during download;</li>
+<li>signed URL expires;</li>
+<li>duplicate finalization;</li>
+<li>CDN returns stale metadata;</li>
+<li>aggressive retries drain battery;</li>
+<li>cache eviction deletes an in-progress file.</li>
+</ul>
+<div class="chapter-break"></div>
+
+</section>
+</section>
+<section id="security-and-privacy" class="level1">
+<h1>Security and Privacy</h1>
+<p><em>Planned for the next writing checkpoint.</em></p>
+<p>This chapter will cover threat modelling, OAuth/OIDC with PKCE,
+passkeys, access/refresh token lifecycle, Keychain/Keystore, local
+database encryption, TLS and pinning trade-offs, application
+attestation, logs and analytics, rooted/jailbroken devices, end-to-end
+encryption, multi-device keys, recovery, metadata leakage, and
+privacy-safe observability.</p>
+<div class="chapter-break"></div>
+
+</section>
+<section id="performance-and-resource-efficiency" class="level1">
+<h1>Performance and Resource Efficiency</h1>
+<p><em>Planned for the next writing checkpoint.</em></p>
+<p>This chapter will cover cold/warm/hot start, startup governance,
+frame time, list virtualization, memory and bitmap budgets, radio
+wake-ups, location accuracy, socket/polling trade-offs, thermal load,
+application size, and performance testing by device class.</p>
+<div class="chapter-break"></div>
+
+</section>
+<section id="observability-releases-and-runtime-control" class="level1">
+<h1>Observability, Releases, and Runtime Control</h1>
+<p><em>Planned for the next writing checkpoint.</em></p>
+<p>This chapter will cover crash-free sessions, ANRs and hangs, network
+and sync telemetry, privacy-safe event design, staged store rollouts,
+remote configuration, feature flags, kill switches, A/B tests, rollback
+constraints, API compatibility, and minimum supported versions.</p>
+<div class="chapter-break"></div>
+
+</section>
+<section id="worked-designs" class="level1">
+<h1>Worked Designs</h1>
+<p>Planned case studies:</p>
+<ol type="1">
+<li>Instagram-like mobile feed</li>
+<li>Google Drive-like mobile upload and download</li>
+<li>Spotify-like offline playback</li>
+<li>Uber-like live trip tracking</li>
+<li>Slack-like mobile messaging</li>
+<li>Collaborative mobile document editor</li>
+</ol>
+<p>Each case will follow the same structure:</p>
+<pre class="text"><code>users and scope
+→ requirements and budgets
+→ data/state model
+→ high-level architecture
+→ critical flow
+→ offline and background behaviour
+→ failures and recovery
+→ security
+→ observability
+→ alternatives and trade-offs</code></pre>
+<div class="chapter-break"></div>
+
+</section>
+<section id="decision-tables" class="level1">
+<h1>Decision Tables</h1>
+<section id="communication" class="level2">
+<h2>Communication</h2>
+<table>
+<thead>
+<tr class="header">
+<th>Need</th>
+<th>Start with</th>
+<th>Add when required</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>ordinary resource reads/writes</td>
+<td>REST/HTTP</td>
+<td>GraphQL/BFF for complex composition</td>
+</tr>
+<tr class="even">
+<td>foreground bidirectional events</td>
+<td>WebSocket</td>
+<td>cursor-based resume and HTTP recovery</td>
+</tr>
+<tr class="odd">
+<td>foreground server-only events</td>
+<td>SSE</td>
+<td>HTTP commands in opposite direction</td>
+</tr>
+<tr class="even">
+<td>process may be suspended/killed</td>
+<td>APNs/FCM hint</td>
+<td>reconcile via HTTP</td>
+</tr>
+<tr class="odd">
+<td>low-frequency approximate freshness</td>
+<td>polling/refresh-on-open</td>
+<td>push when cost justifies</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="local-data" class="level2">
+<h2>Local data</h2>
+<table>
+<thead>
+<tr class="header">
+<th>Need</th>
+<th>Solution</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>repeated within-session read</td>
+<td>memory cache</td>
+</tr>
+<tr class="even">
+<td>reconstructible assets across sessions</td>
+<td>bounded disk cache</td>
+</tr>
+<tr class="odd">
+<td>queryable durable entities</td>
+<td>local database</td>
+</tr>
+<tr class="even">
+<td>sensitive credential</td>
+<td>Keychain/Keystore</td>
+</tr>
+<tr class="odd">
+<td>durable outgoing intent</td>
+<td>transactional outbox</td>
+</tr>
+<tr class="even">
+<td>user-pinned large content</td>
+<td>managed file storage plus database metadata</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="conflict-resolution" class="level2">
+<h2>Conflict resolution</h2>
+<table>
+<thead>
+<tr class="header">
+<th>Data</th>
+<th>Likely starting strategy</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>social like/read marker</td>
+<td>idempotent operation or set semantics</td>
+</tr>
+<tr class="even">
+<td>profile field</td>
+<td>revision check plus field/last-write policy</td>
+</tr>
+<tr class="odd">
+<td>chat message creation</td>
+<td>append-only client ID</td>
+</tr>
+<tr class="even">
+<td>payment</td>
+<td>server-authoritative state machine and idempotency</td>
+</tr>
+<tr class="odd">
+<td>note edited on two devices</td>
+<td>revision conflict, merge or user choice</td>
+</tr>
+<tr class="even">
+<td>collaborative rich text</td>
+<td>OT or CRDT after proven requirement</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="large-transfers" class="level2">
+<h2>Large transfers</h2>
+<table>
+<thead>
+<tr class="header">
+<th>Situation</th>
+<th>Solution</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>small bounded attachment</td>
+<td>single streaming request</td>
+</tr>
+<tr class="even">
+<td>large, unreliable network</td>
+<td>resumable upload</td>
+</tr>
+<tr class="odd">
+<td>very large and bandwidth-rich</td>
+<td>multipart with bounded parallelism</td>
+</tr>
+<tr class="even">
+<td>must continue while app suspended</td>
+<td>OS-managed background transfer</td>
+</tr>
+<tr class="odd">
+<td>seekable media playback</td>
+<td>range/segmented streaming</td>
+</tr>
+</tbody>
+</table>
+<div class="chapter-break"></div>
+
+</section>
+</section>
+<section id="sources-and-further-reading" class="level1">
+<h1>Sources and Further Reading</h1>
+<p>The book prioritizes first-party platform documentation and company
+engineering publications. A source demonstrates only what it actually
+states; it does not prove every current implementation detail of a named
+app.</p>
+<section id="platform-architecture-and-background-work" class="level2">
+<h2>Platform architecture and background work</h2>
+<ul>
+<li><a href="https://developer.android.com/topic/architecture">Android:
+Guide to app architecture</a></li>
+<li><a
+href="https://developer.android.com/topic/architecture/data-layer/offline-first">Android:
+Build an offline-first app</a></li>
+<li><a
+href="https://developer.android.com/topic/architecture/domain-layer">Android:
+Domain layer</a></li>
+<li><a
+href="https://developer.android.com/develop/background-work/background-tasks/persistent">Android:
+Persistent background work</a></li>
+<li><a
+href="https://developer.apple.com/documentation/foundation/urlsession">Apple:
+URLSession</a></li>
+<li><a
+href="https://developer.apple.com/documentation/foundation/downloading-files-in-the-background">Apple:
+Downloading files in the background</a></li>
+<li><a
+href="https://developer.apple.com/videos/play/wwdc2023/10006/">Apple:
+Build robust and resumable file transfers</a></li>
+</ul>
+</section>
+<section id="production-engineering" class="level2">
+<h2>Production engineering</h2>
+<ul>
+<li><a
+href="https://engineering.fb.com/2023/02/06/ios/facebook-ios-app-architecture/">Meta:
+The evolution of Facebook’s iOS app architecture</a></li>
+<li><a
+href="https://engineering.fb.com/2017/10/18/android/mobile-scale-2017-recap/">Meta:
+Mobile @Scale 2017 recap — Instagram background prefetching</a></li>
+<li><a
+href="https://engineering.fb.com/2024/10/02/android/react-at-meta-connect-2024/">Meta:
+React at Meta Connect 2024</a></li>
+<li><a
+href="https://dropbox.tech/mobile/building-carousel-part-i-how-we-made-our-networked-mobile-app-feel-fast-and-local">Dropbox:
+Building Carousel, Part I</a></li>
+<li><a
+href="https://dropbox.tech/infrastructure/rewriting-the-heart-of-our-sync-engine">Dropbox:
+Rewriting the heart of our sync engine</a></li>
+<li><a
+href="https://slack.engineering/service-workers-at-slack-our-quest-for-faster-boot-times-and-offline-support/">Slack:
+Service workers, faster boot, and offline support</a></li>
+</ul>
+</section>
+<section id="apis-and-transfers" class="level2">
+<h2>APIs and transfers</h2>
+<ul>
+<li><a
+href="https://developers.google.com/drive/api/guides/manage-uploads">Google
+Drive API: Manage uploads</a></li>
+<li><a
+href="https://developer.apple.com/documentation/foundation/pausing-and-resuming-uploads">Apple:
+Pausing and resuming uploads</a></li>
+</ul>
+</section>
+<section id="source-policy" class="level2">
+<h2>Source policy</h2>
+<p>Later chapters will add sources on:</p>
+<ul>
+<li>OAuth/OIDC and PKCE;</li>
+<li>passkeys;</li>
+<li>Android Keystore and Apple Keychain;</li>
+<li>APNs and FCM delivery semantics;</li>
+<li>GraphQL mobile caching;</li>
+<li>HLS/DASH;</li>
+<li>SQLite/Room/Core Data migrations;</li>
+<li>CRDT and OT production systems;</li>
+<li>mobile observability and staged releases.</li>
+</ul>
+</section>
+</section>
+</div>
+  <script>
+    const toc = document.querySelector('#TOC');
+    const main = document.createElement('main');
+    [...document.body.querySelector('.layout').children].filter(x => x !== toc).forEach(x => main.appendChild(x));
+    document.body.querySelector('.layout').appendChild(main);
+    const note = document.createElement('div');
+    note.className = 'reading-note';
+    note.innerHTML = '<strong>Draft checkpoint.</strong> Chapters 1–6 are developed; later sections currently map the material still to be expanded.';
+    main.insertBefore(note, main.children[1] || null);
+    document.querySelector('#focus').addEventListener('click', e => {
+      document.body.classList.toggle('focus');
+      e.currentTarget.textContent = document.body.classList.contains('focus') ? 'Show contents' : 'Focus mode';
+    });
+    const progress = document.querySelector('#progress');
+    const links = [...document.querySelectorAll('#TOC a')];
+    const sections = links.map(a => document.querySelector(a.getAttribute('href'))).filter(Boolean);
+    addEventListener('scroll', () => {
+      const max = document.documentElement.scrollHeight - innerHeight;
+      progress.style.width = (max > 0 ? scrollY / max * 100 : 0) + '%';
+      let current = sections[0];
+      for (const section of sections) if (section.getBoundingClientRect().top < 120) current = section;
+      links.forEach(a => a.classList.toggle('active', current && a.getAttribute('href') === '#' + current.id));
+    }, {passive:true});
+  </script>
+</body>
+</html>
